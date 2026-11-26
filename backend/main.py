@@ -2,6 +2,7 @@ import anthropic
 import sys
 from pydantic import BaseModel, Field, model_validator, ValidationError
 from typing import Annotated, Literal
+from fastapi import HTTPException
 
 client = anthropic.Anthropic()
 
@@ -11,7 +12,7 @@ class Question(BaseModel):
     options: list[Annotated[str, Field(min_length=2, max_length=100)]] = Field(min_length=4, max_length=4)
     answer: int = Field(ge=0, le=3)
 
-class Response(BaseModel):
+class QuizResponse(BaseModel):
     status: Literal["ok", "error"]
     message: str | None = None
     @model_validator(mode="after")
@@ -43,17 +44,17 @@ def generate_quiz(topic):
                     "content": prompt,
                 }
             ],
-            output_format=Response
+            output_format=QuizResponse
         )
     except ValidationError as e:
-        raise RuntimeError("The model couldn't reply. Please try again.") from e
+        raise HTTPException(status_code=422, detail="Validation Error, couldn't parse the message")
 
     result = message.parsed_output
 
     if result:
         return result
     else:
-        raise RuntimeError(f"Stopped early due to : {message.stop_reason}")
+        raise HTTPException(status_code=422)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
